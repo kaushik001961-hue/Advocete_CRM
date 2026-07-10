@@ -1,0 +1,183 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+// ... rest of your models (Case, Hearing, Client, etc.)
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  image     String?
+  tasks     Task[]
+  role      Role      @default(ADVOCATE)
+  accounts  Account[]
+  cases     Case[]    @relation("AdvocateCases")
+  sessions  Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Client {
+  id        String     @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?    @unique
+  address   String?
+  createdAt DateTime   @default(now())
+  invoices Invoice[]
+  city      String?
+  notes     String?
+  pincode   String?
+  state     String?
+  updatedAt DateTime   @updatedAt
+  cases     Case[]
+  documents Document[]
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  amount      Float
+  category    String
+  expenseDate DateTime
+
+  createdAt   DateTime @default(now())
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+
+  dueDate     DateTime?
+
+  status      String @default("PENDING")
+
+  assignedTo  String
+
+  user        User @relation(fields: [assignedTo], references: [id])
+
+  createdAt   DateTime @default(now())
+}
+
+model Case {
+  id          String   @id @default(cuid())
+  title       String
+  caseNumber  String
+  court       String
+  status      String
+
+  filingDate  DateTime?
+  priority    String? @default("NORMAL")
+
+  clientId    String
+  advocateId  String
+
+  description String?
+
+  createdAt   DateTime @default(now())
+
+  advocate    User @relation("AdvocateCases", fields: [advocateId], references: [id])
+  client      Client @relation(fields: [clientId], references: [id])
+
+  hearings    Hearing[]
+  documents   Document[]
+}
+
+model Hearing {
+  id          String    @id @default(cuid())
+  date        DateTime
+  nextDate    DateTime?
+  remarks     String?
+  status      String    @default("SCHEDULED")
+  courtRoom   String?
+  hearingType String?
+  orderPassed String?
+
+  caseId      String
+  case        Case      @relation(fields: [caseId], references: [id])
+
+  createdAt   DateTime  @default(now())
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  fileUrl    String
+  clientId   String?
+  caseId     String?
+  category   String?
+  fileSize   Int?
+  mimeType   String?
+  name       String
+  uploadedAt DateTime @default(now())
+  case       Case?    @relation(fields: [caseId], references: [id])
+  client     Client?  @relation(fields: [clientId], references: [id])
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  invoiceNo   String   @unique
+  clientId    String
+
+  amount      Float
+  gstAmount   Float
+  totalAmount Float
+
+  dueDate     DateTime
+  notes       String?
+
+  status      String   @default("PENDING")
+
+  createdAt   DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  ADVOCATE
+  STAFF
+}
