@@ -1,14 +1,12 @@
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
 }
 
-// ... rest of your models (Case, Hearing, Client, etc.)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 model User {
   id        String    @id @default(cuid())
@@ -18,11 +16,11 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   image     String?
-  tasks     Task[]
   role      Role      @default(ADVOCATE)
   accounts  Account[]
   cases     Case[]    @relation("AdvocateCases")
   sessions  Session[]
+  tasks     Task[]
 }
 
 model Account {
@@ -66,7 +64,6 @@ model Client {
   email     String?    @unique
   address   String?
   createdAt DateTime   @default(now())
-  invoices Invoice[]
   city      String?
   notes     String?
   pincode   String?
@@ -74,73 +71,60 @@ model Client {
   updatedAt DateTime   @updatedAt
   cases     Case[]
   documents Document[]
+  invoices  Invoice[]
 }
 
 model Expense {
   id          String   @id @default(cuid())
   title       String
-  description String?
   amount      Float
   category    String
   expenseDate DateTime
-
   createdAt   DateTime @default(now())
+  description String?
 }
 
 model Task {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   description String?
-
   dueDate     DateTime?
-
-  status      String @default("PENDING")
-
+  status      String    @default("PENDING")
   assignedTo  String
-
-  user        User @relation(fields: [assignedTo], references: [id])
-
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [assignedTo], references: [id])
 }
 
 model Case {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   title       String
-  caseNumber  String
   court       String
   status      String
-
-  filingDate  DateTime?
-  priority    String? @default("NORMAL")
-
   clientId    String
   advocateId  String
-
+  createdAt   DateTime   @default(now())
+  caseNumber  String
   description String?
-
-  createdAt   DateTime @default(now())
-
-  advocate    User @relation("AdvocateCases", fields: [advocateId], references: [id])
-  client      Client @relation(fields: [clientId], references: [id])
-
-  hearings    Hearing[]
+  filingDate  DateTime?
+  priority    String?    @default("NORMAL")
+  advocate    User       @relation("AdvocateCases", fields: [advocateId], references: [id])
+  client      Client     @relation(fields: [clientId], references: [id])
   documents   Document[]
+  hearings    Hearing[]
 }
 
 model Hearing {
   id          String    @id @default(cuid())
   date        DateTime
-  nextDate    DateTime?
   remarks     String?
+  caseId      String
+  nextDate    DateTime?
   status      String    @default("SCHEDULED")
   courtRoom   String?
+  createdAt   DateTime  @default(now())
   hearingType String?
   orderPassed String?
-
-  caseId      String
   case        Case      @relation(fields: [caseId], references: [id])
-
-  createdAt   DateTime  @default(now())
 }
 
 model Document {
@@ -161,19 +145,14 @@ model Invoice {
   id          String   @id @default(cuid())
   invoiceNo   String   @unique
   clientId    String
-
   amount      Float
   gstAmount   Float
   totalAmount Float
-
   dueDate     DateTime
-  notes       String?
-
   status      String   @default("PENDING")
-
   createdAt   DateTime @default(now())
-
-  client Client @relation(fields: [clientId], references: [id])
+  notes       String?
+  client      Client   @relation(fields: [clientId], references: [id])
 }
 
 enum Role {
