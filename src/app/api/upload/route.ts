@@ -1,38 +1,121 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import {
+  getAuthContext,
+  canAccessCase,
+  canAccessClient,
+} from "@/lib/permissions";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
 export async function POST(req: Request) {
   try {
-    const formData = await req.formData();
+    /*
+     * --------------------------------------------------------
+     * AUTH
+     * --------------------------------------------------------
+     */
 
-    const file = formData.get("file") as File | null;
+    const context =
+      await getAuthContext();
 
-    const title = String(formData.get("title") || "").trim();
-    const category = String(formData.get("category") || "General").trim();
-    const subcategory = String(
-      formData.get("subcategory") || ""
-    ).trim();
-    const description = String(
-      formData.get("description") || ""
-    ).trim();
+    if (!context) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
 
-    const caseId = String(formData.get("caseId") || "").trim();
-    const clientId = String(formData.get("clientId") || "").trim();
+    /*
+     * --------------------------------------------------------
+     * FORM DATA
+     * --------------------------------------------------------
+     */
 
-    const documentDateValue = String(
-      formData.get("documentDate") || ""
-    ).trim();
+    const formData =
+      await req.formData();
 
-    const isImportantValue = String(
-      formData.get("isImportant") || "false"
-    ).trim();
+    const file =
+      formData.get(
+        "file"
+      ) as File | null;
+
+    const title =
+      String(
+        formData.get(
+          "title"
+        ) || ""
+      ).trim();
+
+    const category =
+      String(
+        formData.get(
+          "category"
+        ) || "General"
+      ).trim();
+
+    const subcategory =
+      String(
+        formData.get(
+          "subcategory"
+        ) || ""
+      ).trim();
+
+    const description =
+      String(
+        formData.get(
+          "description"
+        ) || ""
+      ).trim();
+
+    /*
+     * CRITICAL:
+     *
+     * This is the case selected by the user.
+     */
+    const caseId =
+      String(
+        formData.get(
+          "caseId"
+        ) || ""
+      ).trim();
+
+    const requestedClientId =
+      String(
+        formData.get(
+          "clientId"
+        ) || ""
+      ).trim();
+
+    const documentDateValue =
+      String(
+        formData.get(
+          "documentDate"
+        ) || ""
+      ).trim();
+
+    const isImportantValue =
+      String(
+        formData.get(
+          "isImportant"
+        ) || "false"
+      ).trim();
+
+    /*
+     * --------------------------------------------------------
+     * FILE VALIDATION
+     * --------------------------------------------------------
+     */
 
     if (!file) {
       return NextResponse.json(
         {
-          error: "No file provided",
+          error:
+            "No file provided.",
         },
         {
           status: 400,
@@ -40,11 +123,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Basic file validation
     if (file.size <= 0) {
       return NextResponse.json(
         {
-          error: "The selected file is empty.",
+          error:
+            "The selected file is empty.",
         },
         {
           status: 400,
@@ -52,22 +135,82 @@ export async function POST(req: Request) {
       );
     }
 
-    // Optional: validate case
+    /*
+     * --------------------------------------------------------
+     * CASE IS REQUIRED FOR EVIDENCE
+     * --------------------------------------------------------
+     */
+
+    if (
+      category.toLowerCase() ===
+        "evidence" &&
+      !caseId
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Evidence documents must be associated with a case.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /*
+     * --------------------------------------------------------
+     * CASE VALIDATION
+     * --------------------------------------------------------
+     */
+
+    let existingCase:
+      | {
+          id: string;
+          clientId: string;
+          caseNumber: string;
+          title: string;
+          court: string;
+        }
+      | null = null;
+
     if (caseId) {
-      const existingCase = await prisma.case.findUnique({
-        where: {
-          id: caseId,
-        },
-        select: {
-          id: true,
-          clientId: true,
-        },
-      });
+      const allowed =
+        await canAccessCase(
+          caseId,
+          context
+        );
+
+      if (!allowed) {
+        return NextResponse.json(
+          {
+            error:
+              "Case not found or you do not have permission to access this case.",
+          },
+          {
+            status: 403,
+          }
+        );
+      }
+
+      existingCase =
+        await prisma.case.findUnique({
+          where: {
+            id: caseId,
+          },
+          select: {
+            id: true,
+            clientId: true,
+            caseNumber: true,
+            title: true,
+            court: true,
+          },
+        });
 
       if (!existingCase) {
         return NextResponse.json(
           {
-            error: "Case not found.",
+            error:
+              "Case not found.",
           },
           {
             status: 404,
@@ -76,39 +219,114 @@ export async function POST(req: Request) {
       }
     }
 
-    // Optional: validate client
-    if (clientId) {
-      const existingClient = await prisma.client.findUnique({
-        where: {
-          id: clientId,
-        },
-        select: {
-          id: true,
-        },
-      });
+    /*
+     * --------------------------------------------------------
+     * CLIENT ASSOCIATION
+     * --------------------------------------------------------
+     *
+     * If a case is selected, the CASE's client is
+     * authoritative.
+     */
+
+    let finalClientId:
+      | string
+      | null = null;
+
+    if (existingCase) {
+      finalClientId =
+        existingCase.clientId;
+
+      /*
+       * Prevent browser from mapping
+       * selected case to another client.
+       */
+      if (
+        requestedClientId &&
+        requestedClientId !==
+          existingCase.clientId
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "The selected client does not belong to the selected case.",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+    } else if (
+      requestedClientId
+    ) {
+      const allowed =
+        await canAccessClient(
+          requestedClientId,
+          context
+        );
+
+      if (!allowed) {
+        return NextResponse.json(
+          {
+            error:
+              "Client not found or access denied.",
+          },
+          {
+            status: 403,
+          }
+        );
+      }
+
+      const existingClient =
+        await prisma.client.findUnique({
+          where: {
+            id: requestedClientId,
+          },
+          select: {
+            id: true,
+          },
+        });
 
       if (!existingClient) {
         return NextResponse.json(
           {
-            error: "Client not found.",
+            error:
+              "Client not found.",
           },
           {
             status: 404,
           }
         );
       }
+
+      finalClientId =
+        existingClient.id;
     }
 
-    // Parse document date
-    let documentDate: Date | null = null;
+    /*
+     * --------------------------------------------------------
+     * DATE
+     * --------------------------------------------------------
+     */
+
+    let documentDate:
+      | Date
+      | null = null;
 
     if (documentDateValue) {
-      const parsedDate = new Date(documentDateValue);
+      const parsedDate =
+        new Date(
+          documentDateValue
+        );
 
-      if (Number.isNaN(parsedDate.getTime())) {
+      if (
+        Number.isNaN(
+          parsedDate.getTime()
+        )
+      ) {
         return NextResponse.json(
           {
-            error: "Invalid document date.",
+            error:
+              "Invalid document date.",
           },
           {
             status: 400,
@@ -116,92 +334,185 @@ export async function POST(req: Request) {
         );
       }
 
-      documentDate = parsedDate;
+      documentDate =
+        parsedDate;
     }
 
-    // Parse important flag
+    /*
+     * --------------------------------------------------------
+     * IMPORTANT FLAG
+     * --------------------------------------------------------
+     */
+
     const isImportant =
-      isImportantValue === "true" ||
-      isImportantValue === "1" ||
-      isImportantValue === "on";
+      isImportantValue ===
+        "true" ||
+      isImportantValue ===
+        "1" ||
+      isImportantValue ===
+        "on";
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    /*
+     * --------------------------------------------------------
+     * FILE BUFFER
+     * --------------------------------------------------------
+     */
 
-    // Save to public/uploads
-    const uploadDir = path.join(
-      process.cwd(),
-      "public/uploads"
-    );
+    const bytes =
+      await file.arrayBuffer();
 
-    await mkdir(uploadDir, {
-      recursive: true,
-    });
+    const buffer =
+      Buffer.from(bytes);
 
-    // Clean filename
-    const safeOriginalName = file.name
-      .replace(/[^a-zA-Z0-9._-]/g, "_")
-      .replace(/_+/g, "_");
+    /*
+     * --------------------------------------------------------
+     * UPLOAD DIRECTORY
+     * --------------------------------------------------------
+     */
 
-    const fileName = `${Date.now()}-${safeOriginalName}`;
+    const uploadDir =
+      path.join(
+        process.cwd(),
+        "public",
+        "uploads"
+      );
 
-    const filePath = path.join(
+    await mkdir(
       uploadDir,
-      fileName
+      {
+        recursive: true,
+      }
     );
 
-    await writeFile(filePath, buffer);
+    /*
+     * --------------------------------------------------------
+     * SAFE FILE NAME
+     * --------------------------------------------------------
+     */
 
-    const fileUrl = `/uploads/${fileName}`;
+    const safeOriginalName =
+      file.name
+        .replace(
+          /[^a-zA-Z0-9._-]/g,
+          "_"
+        )
+        .replace(
+          /_+/g,
+          "_"
+        );
 
-    // Determine client association
-    let finalClientId: string | null = clientId || null;
+    const fileName =
+      `${Date.now()}-${safeOriginalName}`;
 
-    if (!finalClientId && caseId) {
-      const existingCase = await prisma.case.findUnique({
-        where: {
-          id: caseId,
-        },
-        select: {
-          clientId: true,
+    const filePath =
+      path.join(
+        uploadDir,
+        fileName
+      );
+
+    await writeFile(
+      filePath,
+      buffer
+    );
+
+    const fileUrl =
+      `/uploads/${fileName}`;
+
+    /*
+     * --------------------------------------------------------
+     * CREATE DOCUMENT
+     * --------------------------------------------------------
+     *
+     * The selected case is saved here.
+     */
+
+    const document =
+      await prisma.document.create({
+        data: {
+          name:
+            title ||
+            file.name,
+
+          category:
+            category ||
+            "General",
+
+          subcategory:
+            subcategory ||
+            null,
+
+          description:
+            description ||
+            null,
+
+          documentDate,
+
+          isImportant,
+
+          fileUrl,
+
+          fileSize:
+            file.size,
+
+          mimeType:
+            file.type ||
+            null,
+
+          /*
+           * CASE MAPPING
+           */
+          caseId:
+            existingCase?.id ||
+            null,
+
+          /*
+           * REAL CASE CLIENT
+           */
+          clientId:
+            finalClientId,
         },
       });
-
-      finalClientId = existingCase?.clientId || null;
-    }
-
-    // Create document record
-    const document = await prisma.document.create({
-      data: {
-        name: title || file.name,
-        category: category || "General",
-        subcategory: subcategory || null,
-        description: description || null,
-        documentDate,
-        isImportant,
-        fileUrl,
-        fileSize: file.size,
-        mimeType: file.type || null,
-        caseId: caseId || null,
-        clientId: finalClientId,
-      },
-    });
 
     return NextResponse.json(
       {
         success: true,
+
         document,
+
+        case:
+          existingCase
+            ? {
+                id:
+                  existingCase.id,
+
+                caseNumber:
+                  existingCase.caseNumber,
+
+                title:
+                  existingCase.title,
+
+                court:
+                  existingCase.court,
+
+                clientId:
+                  existingCase.clientId,
+              }
+            : null,
       },
       {
         status: 201,
       }
     );
   } catch (error) {
-    console.error("Upload Error:", error);
+    console.error(
+      "UPLOAD_DOCUMENT_ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
-        error: "File upload failed",
+        error:
+          "File upload failed.",
       },
       {
         status: 500,

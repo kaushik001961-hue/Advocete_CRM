@@ -24,17 +24,17 @@ function parseDate(value: unknown) {
  * Find a hearing only if it belongs to a case
  * owned by the logged-in advocate.
  */
-async function getOwnedHearing(
+async function getAccessibleHearing(
   id: string,
-  userId: string
+  userId: string,
+  role: string
 ) {
   return prisma.hearing.findFirst({
     where: {
       id,
-
-      case: {
-        advocateId: userId,
-      },
+      ...(role === "ADVOCATE"
+        ? { case: { advocateId: userId } }
+        : {}),
     },
 
     include: {
@@ -78,9 +78,10 @@ export async function GET(
 
     const { id } = await context.params;
 
-    const hearing = await getOwnedHearing(
+    const hearing = await getAccessibleHearing(
       id,
-      session.user.id
+      session.user.id,
+      session.user.role
     );
 
     if (!hearing) {
@@ -130,9 +131,10 @@ export async function PUT(
 
     const { id } = await context.params;
 
-    const existingHearing = await getOwnedHearing(
+    const existingHearing = await getAccessibleHearing(
       id,
-      session.user.id
+      session.user.id,
+      session.user.role
     );
 
     if (!existingHearing) {
@@ -325,9 +327,10 @@ export async function DELETE(
 
     const { id } = await context.params;
 
-    const existingHearing = await getOwnedHearing(
+    const existingHearing = await getAccessibleHearing(
       id,
-      session.user.id
+      session.user.id,
+      session.user.role
     );
 
     if (!existingHearing) {

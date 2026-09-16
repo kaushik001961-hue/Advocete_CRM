@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthContext, canAccessCase } from "@/lib/permissions";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -10,7 +11,13 @@ export async function GET(
   { params }: RouteContext
 ) {
   try {
+    const userContext = await getAuthContext();
+    if (!userContext) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
+    if (!(await canAccessCase(id, userContext))) {
+      return NextResponse.json({ error: "Case not found or access denied." }, { status: 404 });
+    }
 
     const caseRecord = await prisma.case.findUnique({
       where: { id },
@@ -47,7 +54,13 @@ export async function POST(
   { params }: RouteContext
 ) {
   try {
+    const userContext = await getAuthContext();
+    if (!userContext) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
+    if (!(await canAccessCase(id, userContext))) {
+      return NextResponse.json({ error: "Case not found or access denied." }, { status: 404 });
+    }
 
     const caseRecord = await prisma.case.findUnique({
       where: { id },
@@ -138,7 +151,13 @@ export async function DELETE(
   { params }: RouteContext
 ) {
   try {
+    const userContext = await getAuthContext();
+    if (!userContext) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
+    if (!(await canAccessCase(id, userContext))) {
+      return NextResponse.json({ error: "Case not found or access denied." }, { status: 404 });
+    }
 
     const eventId = request.nextUrl.searchParams.get("dateId");
 

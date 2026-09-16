@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
@@ -21,7 +21,6 @@ import {
   ChevronRight,
   Clock3,
   FileCheck2,
-  Wallet,
   BarChart3,
 } from "lucide-react";
 
@@ -42,6 +41,7 @@ export default function AdvocateLayout({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     "Case Management": true,
     "Court Work": true,
@@ -51,6 +51,7 @@ export default function AdvocateLayout({
   });
 
   const pathname = usePathname();
+  const router = useRouter();
 
   const sections: NavSection[] = [
     {
@@ -79,22 +80,22 @@ export default function AdvocateLayout({
         },
         {
           name: "Case Timeline",
-          href: "/advocate/cases",
+          href: "/advocate/cases/timeline",
           icon: Clock3,
         },
         {
           name: "Important Dates",
-          href: "/advocate/cases",
+          href: "/advocate/cases/important-dates",
           icon: Calendar,
         },
         {
           name: "Case Notes",
-          href: "/advocate/cases",
+          href: "/advocate/cases/notes",
           icon: FileText,
         },
         {
           name: "Related Cases",
-          href: "/advocate/cases",
+          href: "/advocate/cases/related",
           icon: FileCheck2,
         },
       ],
@@ -131,7 +132,7 @@ export default function AdvocateLayout({
         },
         {
           name: "Evidence",
-          href: "/advocate/documents",
+          href: "/advocate/documents/evidence",
           icon: FileCheck2,
         },
       ],
@@ -183,18 +184,50 @@ export default function AdvocateLayout({
     }));
   }
 
-  function isItemActive(href: string) {
-    if (href === "/advocate") {
+  /*
+   * Active navigation logic
+   *
+   * Important:
+   * /advocate/cases should activate ONLY "My Cases"
+   * and not Case Timeline / Important Dates / Notes / Related Cases.
+   *
+   * Likewise:
+   * /advocate/documents should activate ONLY "Documents"
+   * and not Evidence.
+   */
+  function isItemActive(item: NavItem) {
+    if (item.href === "/advocate") {
       return pathname === "/advocate";
     }
 
-    return pathname === href || pathname.startsWith(`${href}/`);
+    if (item.href === "/advocate/cases") {
+      return pathname === "/advocate/cases";
+    }
+
+    if (item.href === "/advocate/documents") {
+      return pathname === "/advocate/documents";
+    }
+
+    return (
+      pathname === item.href ||
+      pathname.startsWith(`${item.href}/`)
+    );
   }
 
   async function handleLogout() {
-    await signOut({
-      callbackUrl: "/login",
-    });
+    try {
+      await signOut({
+        redirect: false,
+      });
+
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout error:", error);
+
+      // Fallback in case router navigation does not happen
+      window.location.href = "/login";
+    }
   }
 
   return (
@@ -210,17 +243,25 @@ export default function AdvocateLayout({
 
           <div>
             <p className="font-bold text-sm">Legal CRM</p>
-            <p className="text-[10px] text-slate-400">Advocate Portal</p>
+            <p className="text-[10px] text-slate-400">
+              Advocate Portal
+            </p>
           </div>
         </div>
 
         <button
           type="button"
-          onClick={() => setIsSidebarOpen((prev) => !prev)}
+          onClick={() =>
+            setIsSidebarOpen((prev) => !prev)
+          }
           className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition"
           aria-label="Toggle navigation"
         >
-          {isSidebarOpen ? <X size={23} /> : <Menu size={23} />}
+          {isSidebarOpen ? (
+            <X size={23} />
+          ) : (
+            <Menu size={23} />
+          )}
         </button>
       </div>
 
@@ -257,6 +298,7 @@ export default function AdvocateLayout({
             <h2 className="font-bold text-white text-base">
               Legal CRM
             </h2>
+
             <p className="text-xs text-slate-400">
               Advocate Portal
             </p>
@@ -267,8 +309,11 @@ export default function AdvocateLayout({
         <div className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin scrollbar-thumb-slate-700">
           <nav className="space-y-4">
             {sections.map((section) => {
-              const isOverview = section.title === "Overview";
-              const isAccount = section.title === "Account";
+              const isOverview =
+                section.title === "Overview";
+
+              const isAccount =
+                section.title === "Account";
 
               return (
                 <div key={section.title}>
@@ -276,7 +321,9 @@ export default function AdvocateLayout({
                   {!isOverview && (
                     <button
                       type="button"
-                      onClick={() => toggleSection(section.title)}
+                      onClick={() =>
+                        toggleSection(section.title)
+                      }
                       className="w-full flex items-center justify-between px-3 mb-2 group"
                     >
                       <span className="text-[10px] font-bold tracking-widest uppercase text-slate-500 group-hover:text-slate-300 transition">
@@ -304,7 +351,8 @@ export default function AdvocateLayout({
                     <div className="space-y-1">
                       {section.items.map((item) => {
                         const Icon = item.icon;
-                        const active = isItemActive(item.href);
+                        const active =
+                          isItemActive(item);
 
                         return (
                           <Link

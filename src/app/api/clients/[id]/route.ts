@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getAuthContext, canAccessClient } from "@/lib/permissions";
 
 function emptyToNull(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -19,7 +20,13 @@ export async function GET(
   }
 ) {
   try {
+    const context = await getAuthContext();
+    if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
+    if (!(await canAccessClient(id, context))) {
+      return NextResponse.json({ error: "Client not found or access denied" }, { status: 404 });
+    }
 
     const client = await prisma.client.findUnique({
       where: { id },
@@ -84,7 +91,17 @@ export async function PATCH(
   }
 ) {
   try {
+    const context = await getAuthContext();
+    if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
+    if (!(await canAccessClient(id, context))) {
+      return NextResponse.json({ error: "Client not found or access denied" }, { status: 404 });
+    }
+    if (context.role === "ADVOCATE") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
 
     if (!body.name || String(body.name).trim() === "") {
@@ -145,7 +162,16 @@ export async function DELETE(
   }
 ) {
   try {
+    const context = await getAuthContext();
+    if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
+    if (!(await canAccessClient(id, context))) {
+      return NextResponse.json({ error: "Client not found or access denied" }, { status: 404 });
+    }
+    if (context.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const client = await prisma.client.findUnique({
       where: { id },

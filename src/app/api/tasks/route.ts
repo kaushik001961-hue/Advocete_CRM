@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAndSendNotification } from "@/lib/notifications";
+import { taskWhereForUser } from "@/lib/permissions";
 
 const ALLOWED_STATUSES = [
   "PENDING",
@@ -30,6 +31,7 @@ export async function GET() {
     }
 
     const tasks = await prisma.task.findMany({
+      where: taskWhereForUser({ userId: session.user.id!, role: session.user.role! }),
       orderBy: [
         { dueDate: "asc" },
         { createdAt: "desc" },
@@ -71,10 +73,14 @@ export async function POST(request: Request) {
         ? body.description.trim()
         : null;
 
-    const assignedTo =
+    let assignedTo =
       typeof body.assignedTo === "string"
         ? body.assignedTo.trim()
         : null;
+
+    if (session.user.role === "ADVOCATE") {
+      assignedTo = session.user.id;
+    }
 
     const status =
       typeof body.status === "string"

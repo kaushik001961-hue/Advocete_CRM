@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getAuthContext, canAccessCase } from "@/lib/permissions";
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
+    const context = await getAuthContext();
 
-    if (!session?.user) {
+    if (!context) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -42,6 +42,10 @@ export async function POST(request: Request) {
         },
         { status: 404 }
       );
+    }
+
+    if (!(await canAccessCase(existingCase.id, context))) {
+      return NextResponse.json({ error: "Case not found or access denied." }, { status: 404 });
     }
 
     /*

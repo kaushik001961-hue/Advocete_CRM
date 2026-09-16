@@ -1,29 +1,25 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { clientWhereForUser } from "@/lib/permissions";
 
 export async function GET() {
   try {
     const session = await auth();
 
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    if (!session?.user?.id || !session.user.role) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const clients = await prisma.client.findMany({
-      orderBy: {
-        name: "asc",
-      },
+      where: clientWhereForUser({
+        userId: session.user.id,
+        role: session.user.role,
+      }),
+      orderBy: { name: "asc" },
       include: {
         _count: {
-          select: {
-            cases: true,
-            documents: true,
-            invoices: true,
-          },
+          select: { cases: true, documents: true, invoices: true },
         },
       },
     });
@@ -31,15 +27,7 @@ export async function GET() {
     return NextResponse.json(clients);
   } catch (error) {
     console.error("GET /api/clients error:", error);
-
-    return NextResponse.json(
-      {
-        error: "Failed to fetch clients",
-      },
-      {
-        status: 500,
-      }
-    );
+    return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 });
   }
 }
 
@@ -47,86 +35,42 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
 
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+    if (!session?.user?.id || !session.user.role) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
-
     const name = String(body.name || "").trim();
 
     if (!name) {
-      return NextResponse.json(
-        {
-          error: "Client name is required.",
-        },
-        {
-          status: 400,
-        }
-      );
+      return NextResponse.json({ error: "Client name is required." }, { status: 400 });
     }
 
-    const email =
-      body.email?.toString().trim() || null;
-
+    const email = body.email?.toString().trim() || null;
     const existingClient = email
-      ? await prisma.client.findUnique({
-          where: {
-            email,
-          },
-        })
+      ? await prisma.client.findUnique({ where: { email } })
       : null;
 
     if (existingClient) {
-      return NextResponse.json(
-        {
-          error:
-            "A client with this email already exists.",
-        },
-        {
-          status: 409,
-        }
-      );
+      return NextResponse.json({ error: "A client with this email already exists." }, { status: 409 });
     }
 
     const client = await prisma.client.create({
       data: {
         name,
-        phone:
-          body.phone?.toString().trim() || null,
+        phone: body.phone?.toString().trim() || null,
         email,
-        address:
-          body.address?.toString().trim() || null,
-        city:
-          body.city?.toString().trim() || null,
-        state:
-          body.state?.toString().trim() || null,
-        pincode:
-          body.pincode?.toString().trim() || null,
-        notes:
-          body.notes?.toString().trim() || null,
+        address: body.address?.toString().trim() || null,
+        city: body.city?.toString().trim() || null,
+        state: body.state?.toString().trim() || null,
+        pincode: body.pincode?.toString().trim() || null,
+        notes: body.notes?.toString().trim() || null,
       },
     });
 
-    return NextResponse.json(
-      client,
-      {
-        status: 201,
-      }
-    );
+    return NextResponse.json(client, { status: 201 });
   } catch (error) {
     console.error("POST /api/clients error:", error);
-
-    return NextResponse.json(
-      {
-        error: "Failed to create client.",
-      },
-      {
-        status: 500,
-      }
-    );
+    return NextResponse.json({ error: "Failed to create client." }, { status: 500 });
   }
 }

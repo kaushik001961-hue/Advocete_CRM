@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canAccessTask, getAuthContext } from "@/lib/permissions";
 
 const ALLOWED_STATUSES = [
   "PENDING",
@@ -35,6 +36,11 @@ export async function GET(
     }
 
     const { id } = await context.params;
+    const userContext = await getAuthContext();
+
+    if (!userContext || !(await canAccessTask(id, userContext))) {
+      return NextResponse.json({ error: "Task not found or access denied" }, { status: 404 });
+    }
 
     const task = await prisma.task.findUnique({
       where: { id },
@@ -74,6 +80,11 @@ export async function PUT(
     }
 
     const { id } = await context.params;
+    const userContext = await getAuthContext();
+
+    if (!userContext || !(await canAccessTask(id, userContext))) {
+      return NextResponse.json({ error: "Task not found or access denied" }, { status: 404 });
+    }
 
     const existingTask = await prisma.task.findUnique({
       where: { id },
@@ -115,10 +126,14 @@ export async function PUT(
     }
 
     if (body.assignedTo !== undefined) {
-      data.assignedTo =
-        typeof body.assignedTo === "string"
-          ? body.assignedTo.trim() || null
-          : null;
+      if (userContext?.role === "ADVOCATE") {
+        data.assignedTo = userContext.userId;
+      } else {
+        data.assignedTo =
+          typeof body.assignedTo === "string"
+            ? body.assignedTo.trim() || null
+            : null;
+      }
     }
 
     if (body.dueDate !== undefined) {
@@ -193,6 +208,11 @@ export async function DELETE(
     }
 
     const { id } = await context.params;
+    const userContext = await getAuthContext();
+
+    if (!userContext || !(await canAccessTask(id, userContext))) {
+      return NextResponse.json({ error: "Task not found or access denied" }, { status: 404 });
+    }
 
     const existingTask = await prisma.task.findUnique({
       where: { id },

@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  getAuthContext,
+  canAccessCase,
+  canDeleteCase,
+  canDeleteRecords,
+} from "@/lib/permissions";
 
 type RouteContext = {
   params: Promise<{
@@ -24,9 +30,7 @@ function normalizeOptionalString(
   return valueString === "" ? null : valueString;
 }
 
-function normalizeDate(
-  value: unknown
-): Date | null | undefined {
+function normalizeDate(value: unknown): Date | null | undefined {
   if (value === undefined) return undefined;
 
   if (value === null || value === "") {
@@ -64,6 +68,19 @@ export async function GET(
       );
     }
 
+    const userContext = await getAuthContext();
+
+    if (!userContext) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
     const { id } = await context.params;
 
     if (!id) {
@@ -73,6 +90,22 @@ export async function GET(
         },
         {
           status: 400,
+        }
+      );
+    }
+
+    /*
+     * Security:
+     * ADMIN / STAFF can access operational cases.
+     * ADVOCATE can access only cases assigned to them.
+     */
+    if (!(await canAccessCase(id, userContext))) {
+      return NextResponse.json(
+        {
+          error: "Case not found or access denied.",
+        },
+        {
+          status: 404,
         }
       );
     }
@@ -174,6 +207,23 @@ export async function PUT(
       );
     }
 
+    /*
+     * FIX:
+     * Build userContext before using it anywhere below.
+     */
+    const userContext = await getAuthContext();
+
+    if (!userContext) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
     const { id } = await context.params;
 
     if (!id) {
@@ -187,7 +237,43 @@ export async function PUT(
       );
     }
 
+    /*
+     * Security:
+     * Verify the current user is allowed to access this case.
+     */
+    if (!(await canAccessCase(id, userContext))) {
+      return NextResponse.json(
+        {
+          error: "Case not found or access denied.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
     const body = await request.json();
+
+    /*
+     * ADVOCATE restriction:
+     * An Advocate may update their own case but cannot
+     * reassign that case to another advocate.
+     */
+    if (
+      userContext.role === "ADVOCATE" &&
+      body.advocateId !== undefined &&
+      String(body.advocateId).trim() !== userContext.userId
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Advocates cannot reassign a case to another advocate.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
 
     /* --------------------------------------------------------
        Find existing case
@@ -314,9 +400,23 @@ export async function PUT(
        Validate client
     -------------------------------------------------------- */
 
-    const client = await prisma.client.findUnique({
+    const client = await prisma.client.findFirst({
       where: {
         id: clientId,
+
+        /*
+         * ADVOCATE can only select a client already connected
+         * to one of their cases.
+         */
+        ...(userContext.role === "ADVOCATE"
+          ? {
+              cases: {
+                some: {
+                  advocateId: userContext.userId,
+                },
+              },
+            }
+          : {}),
       },
     });
 
@@ -345,6 +445,24 @@ export async function PUT(
       return NextResponse.json(
         {
           error: "Selected advocate was not found.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /*
+     * Only valid application roles should be assigned.
+     */
+    if (
+      advocate.role !== "ADMIN" &&
+      advocate.role !== "ADVOCATE" &&
+      advocate.role !== "STAFF"
+    ) {
+      return NextResponse.json(
+        {
+          error: "Selected advocate has an invalid role.",
         },
         {
           status: 400,
@@ -563,8 +681,7 @@ export async function PUT(
     }
 
     if (registrationDate !== undefined) {
-      updateData.registrationDate =
-        registrationDate;
+      updateData.registrationDate = registrationDate;
     }
 
     if (firDate !== undefined) {
@@ -605,7 +722,9 @@ export async function PUT(
       where: {
         id,
       },
+
       data: updateData,
+
       include: {
         client: true,
         advocate: true,
@@ -651,14 +770,14 @@ export async function PUT(
        Timeline
     -------------------------------------------------------- */
 
-   await prisma.caseTimelineEvent.create({
-  data: {
-    caseId: id,
-    eventType: "CASE_UPDATED",
-    title: "Case Updated",
-    eventDate: new Date(),
-  },
-});
+    await prisma.caseTimelineEvent.create({
+      data: {
+        caseId: id,
+        eventType: "CASE_UPDATED",
+        title: "Case Updated",
+        eventDate: new Date(),
+      },
+    });
 
     return NextResponse.json(
       updatedCase,
@@ -708,6 +827,19 @@ export async function DELETE(
       );
     }
 
+    const userContext = await getAuthContext();
+
+    if (!userContext) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
     const { id } = await context.params;
 
     if (!id) {
@@ -717,6 +849,34 @@ export async function DELETE(
         },
         {
           status: 400,
+        }
+      );
+    }
+
+    /*
+     * Only ADMIN and STAFF may delete cases.
+     */
+    if (!canDeleteCase(userContext.role)) {
+      return NextResponse.json(
+        {
+          error: "You do not have permission to delete cases.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    /*
+     * Verify the user can access this particular case.
+     */
+    if (!(await canAccessCase(id, userContext))) {
+      return NextResponse.json(
+        {
+          error: "Case not found or access denied.",
+        },
+        {
+          status: 404,
         }
       );
     }

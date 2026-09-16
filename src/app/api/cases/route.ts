@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
+import { getAuthContext, caseWhereForUser, canCreateCase } from "@/lib/permissions";
 
 /**
  * GET /api/cases
@@ -17,7 +16,13 @@ const prisma = new PrismaClient();
  */
 export async function GET() {
   try {
+    const context = await getAuthContext();
+
+    if (!context) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const cases = await prisma.case.findMany({
+      where: caseWhereForUser(context),
       include: {
         client: true,
         documents: true,
@@ -101,6 +106,16 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
+    const context = await getAuthContext();
+
+    if (!context) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!canCreateCase(context.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const {
@@ -163,9 +178,12 @@ export async function POST(request: Request) {
     /*
      * Verify client
      */
-    const client = await prisma.client.findUnique({
+    const client = await prisma.client.findFirst({
       where: {
         id: clientId,
+        ...(context.role === "ADVOCATE"
+          ? { cases: { some: { advocateId: context.userId } } }
+          : {}),
       },
     });
 
@@ -207,14 +225,20 @@ export async function POST(request: Request) {
      * advocate selection in the UI, so we retain
      * the existing fallback behavior.
      */
-    let advocate = await prisma.user.findFirst({
-      where: {
-        role: "ADVOCATE",
-      },
-    });
+    let advocate;
 
-    if (!advocate) {
-      advocate = await prisma.user.findFirst();
+    if (context.role === "ADVOCATE") {
+      advocate = await prisma.user.findUnique({
+        where: { id: context.userId },
+      });
+    } else {
+      advocate = await prisma.user.findFirst({
+        where: { role: "ADVOCATE" },
+      });
+
+      if (!advocate) {
+        advocate = await prisma.user.findFirst();
+      }
     }
 
     if (!advocate) {
