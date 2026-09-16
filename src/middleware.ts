@@ -1,21 +1,28 @@
-import { auth } from "@/auth"; // Or import from "@/lib/auth" depending on where your auth instance is exported
-import { NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
+import { NextRequest, NextResponse } from "next/server";
 
-export default auth((req) => {
-  const token = req.auth;
+export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // Advocate Routes Protection
+  // Only enforce authentication for Advocate pages.
   if (path.startsWith("/advocate")) {
+    const token = await getToken({
+      req,
+      secret: process.env.AUTH_SECRET,
+    });
+
     const allowedRoles = ["ADVOCATE", "ADMIN"];
-    
-    if (!token?.user || !allowedRoles.includes(token.user.role as string)) {
-      return NextResponse.redirect(new URL("/login?error=unauthorized", req.url));
+    const role = token?.role as string | undefined;
+
+    if (!token || !role || !allowedRoles.includes(role)) {
+      return NextResponse.redirect(
+        new URL("/login?error=unauthorized", req.url)
+      );
     }
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [
