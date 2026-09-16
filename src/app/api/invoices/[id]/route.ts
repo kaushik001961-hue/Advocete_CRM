@@ -1,40 +1,31 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
 
-export async function DELETE(
-  req: Request,
-  { params }: {
-    params: Promise<{ id: string }>;
-  }
-) {
-  const { id } = await params;
-
-  await prisma.invoice.delete({
-    where: { id },
-  });
-
-  return NextResponse.json({
-    success: true,
-  });
-}
+const prisma = new PrismaClient();
 
 export async function PATCH(
-  req: Request,
-  { params }: {
-    params: Promise<{ id: string }>;
-  }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
+  try {
+    const { id } = await params;
 
-  const body = await req.json();
+    const body = await request.json();
+    const { status } = body;
 
-  const invoice =
-    await prisma.invoice.update({
+    const updatedInvoice = await prisma.invoice.update({
       where: { id },
-      data: body,
+      data: { status },
+      include: { client: true },
     });
 
-  return NextResponse.json(
-    invoice
-  );
+    return NextResponse.json(updatedInvoice, { status: 200 });
+  } catch (error) {
+    console.error("Error updating invoice status:", error);
+
+    return NextResponse.json(
+      { error: "Failed to update invoice status" },
+      { status: 500 }
+    );
+  }
 }

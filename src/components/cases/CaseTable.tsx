@@ -1,22 +1,34 @@
-
 import Link from "next/link";
+
+interface CaseClient {
+  name?: string | null;
+}
+
+interface CaseAdvocate {
+  name?: string | null;
+}
+
+interface CaseItem {
+  id: string;
+  title?: string | null;
+  client?: CaseClient | null;
+  advocate?: CaseAdvocate | null;
+  court?: string | null;
+  status?: string | null;
+}
+
+interface CaseTableProps {
+  cases: CaseItem[];
+}
 
 export default function CaseTable({
   cases,
-}: {
-  cases: any[];
-}) {
-
+}: CaseTableProps) {
   return (
-
     <div className="bg-white rounded-xl shadow overflow-hidden">
-
       <table className="w-full">
-
         <thead className="bg-gray-100">
-
           <tr>
-
             <th className="p-3 text-left">
               Title
             </th>
@@ -40,20 +52,15 @@ export default function CaseTable({
             <th className="p-3 text-left">
               Actions
             </th>
-
           </tr>
-
         </thead>
 
         <tbody>
-
           {cases.map((item) => (
-
             <tr
               key={item.id}
               className="border-t hover:bg-gray-50"
             >
-
               <td className="p-3">
                 {item.title}
               </td>
@@ -71,7 +78,6 @@ export default function CaseTable({
               </td>
 
               <td className="p-3">
-
                 <span
                   className={`px-3 py-1 rounded-full text-sm
                   ${
@@ -84,11 +90,9 @@ export default function CaseTable({
                 >
                   {item.status}
                 </span>
-
               </td>
 
               <td className="p-3 space-x-3">
-
                 <Link
                   href={`/admin/cases/${item.id}`}
                   className="text-blue-600"
@@ -102,19 +106,11 @@ export default function CaseTable({
                 >
                   Edit
                 </Link>
-
               </td>
-
             </tr>
-
           ))}
-
         </tbody>
-
       </table>
-
     </div>
-
   );
-
 }

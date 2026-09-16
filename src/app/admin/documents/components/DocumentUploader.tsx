@@ -1,49 +1,57 @@
-
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface Client {
+  id: string;
+  name: string;
+}
+
+interface CaseItem {
+  id: string;
+  title: string;
+}
+
+interface DocumentUploaderProps {
+  clients: Client[];
+  cases: CaseItem[];
+}
+
 export default function DocumentUploader({
   clients,
   cases,
-}: any) {
+}: DocumentUploaderProps) {
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
-
   const [loading, setLoading] = useState(false);
 
-  async function submit(
-    e: React.FormEvent<HTMLFormElement>
-  ) {
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (!file) return;
 
     setLoading(true);
 
-    const formData = new FormData(e.currentTarget);
+    try {
+      const formData = new FormData(e.currentTarget);
+      formData.append("file", file);
 
-    formData.append("file", file);
+      await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-    await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    setLoading(false);
-
-    router.push("/admin/documents");
-
-    router.refresh();
+      router.push("/admin/documents");
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="space-y-4"
-    >
+    <form onSubmit={submit} className="space-y-4">
       <input
         name="name"
         placeholder="Document Name"
@@ -60,16 +68,11 @@ export default function DocumentUploader({
         name="clientId"
         className="w-full border p-3 rounded-lg"
       >
-        <option value="">
-          Select Client
-        </option>
+        <option value="">Select Client</option>
 
-        {clients.map((c: any) => (
-          <option
-            key={c.id}
-            value={c.id}
-          >
-            {c.name}
+        {clients.map((client) => (
+          <option key={client.id} value={client.id}>
+            {client.name}
           </option>
         ))}
       </select>
@@ -78,45 +81,32 @@ export default function DocumentUploader({
         name="caseId"
         className="w-full border p-3 rounded-lg"
       >
-        <option value="">
-          Select Case
-        </option>
+        <option value="">Select Case</option>
 
-        {cases.map((c: any) => (
-          <option
-            key={c.id}
-            value={c.id}
-          >
-            {c.title}
+        {cases.map((caseItem) => (
+          <option key={caseItem.id} value={caseItem.id}>
+            {caseItem.title}
           </option>
         ))}
       </select>
 
       <div
         className="border-2 border-dashed rounded-xl p-12 text-center cursor-pointer"
-        onDragOver={(e) =>
-          e.preventDefault()
-        }
+        onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
 
-          setFile(
-            e.dataTransfer.files[0]
-          );
+          const droppedFile = e.dataTransfer.files[0];
+
+          if (droppedFile) {
+            setFile(droppedFile);
+          }
         }}
       >
         {file ? (
-          <div>
-
-            {file.name}
-
-          </div>
+          <div>{file.name}</div>
         ) : (
-          <div>
-
-            Drag & Drop File Here
-
-          </div>
+          <div>Drag &amp; Drop File Here</div>
         )}
       </div>
 
@@ -125,9 +115,7 @@ export default function DocumentUploader({
         hidden
         id="upload"
         onChange={(e) =>
-          setFile(
-            e.target.files?.[0] || null
-          )
+          setFile(e.target.files?.[0] || null)
         }
       />
 
@@ -139,12 +127,11 @@ export default function DocumentUploader({
       </label>
 
       <button
+        type="submit"
         disabled={loading}
-        className="bg-blue-600 text-white px-6 py-3 rounded-lg"
+        className="bg-blue-600 text-white px-6 py-3 rounded-lg disabled:opacity-50"
       >
-        {loading
-          ? "Uploading..."
-          : "Upload Document"}
+        {loading ? "Uploading..." : "Upload Document"}
       </button>
     </form>
   );

@@ -3,30 +3,44 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface Expense {
+  id: string;
+  title: string;
+  description?: string | null;
+  amount: number;
+  category: string;
+  expenseDate: string | Date;
+}
+
+interface EditExpenseFormProps {
+  expense: Expense;
+}
+
+interface ExpenseFormData {
+  title: string;
+  description: string;
+  amount: number;
+  category: string;
+  expenseDate: string;
+}
+
 export default function EditExpenseForm({
   expense,
-}: any) {
+}: EditExpenseFormProps) {
   const router = useRouter();
 
-  const [form, setForm] =
-    useState({
-      title: expense.title,
-      description:
-        expense.description ||
-        "",
-      amount: expense.amount,
-      category:
-        expense.category,
-      expenseDate:
-        new Date(
-          expense.expenseDate
-        )
-          .toISOString()
-          .split("T")[0],
-    });
+  const [form, setForm] = useState<ExpenseFormData>({
+    title: expense.title,
+    description: expense.description || "",
+    amount: expense.amount,
+    category: expense.category,
+    expenseDate: new Date(expense.expenseDate)
+      .toISOString()
+      .split("T")[0],
+  });
 
   async function handleSubmit(
-    e: React.FormEvent
+    e: React.FormEvent<HTMLFormElement>
   ) {
     e.preventDefault();
 
@@ -35,17 +49,14 @@ export default function EditExpenseForm({
       {
         method: "PATCH",
         headers: {
-          "Content-Type":
-            "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(form),
       }
     );
 
     if (res.ok) {
-      router.push(
-        "/admin/expenses"
-      );
+      router.push("/admin/expenses");
       router.refresh();
     }
   }
@@ -61,8 +72,7 @@ export default function EditExpenseForm({
         onChange={(e) =>
           setForm({
             ...form,
-            title:
-              e.target.value,
+            title: e.target.value,
           })
         }
       />
@@ -73,8 +83,7 @@ export default function EditExpenseForm({
         onChange={(e) =>
           setForm({
             ...form,
-            category:
-              e.target.value,
+            category: e.target.value,
           })
         }
       />
@@ -86,9 +95,7 @@ export default function EditExpenseForm({
         onChange={(e) =>
           setForm({
             ...form,
-            amount: Number(
-              e.target.value
-            ),
+            amount: Number(e.target.value),
           })
         }
       />
@@ -96,14 +103,11 @@ export default function EditExpenseForm({
       <input
         type="date"
         className="w-full border p-3 rounded"
-        value={
-          form.expenseDate
-        }
+        value={form.expenseDate}
         onChange={(e) =>
           setForm({
             ...form,
-            expenseDate:
-              e.target.value,
+            expenseDate: e.target.value,
           })
         }
       />
@@ -111,14 +115,11 @@ export default function EditExpenseForm({
       <textarea
         rows={4}
         className="w-full border p-3 rounded"
-        value={
-          form.description
-        }
+        value={form.description}
         onChange={(e) =>
           setForm({
             ...form,
-            description:
-              e.target.value,
+            description: e.target.value,
           })
         }
       />

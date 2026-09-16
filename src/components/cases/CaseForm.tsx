@@ -1,13 +1,32 @@
-
 "use client";
 
 import { createCase, updateCase } from "@/actions/case";
 import { useRouter } from "next/navigation";
 
+interface Client {
+  id: string;
+  name: string;
+}
+
+interface Advocate {
+  id: string;
+  name: string;
+}
+
+interface CaseData {
+  id: string;
+  caseNumber?: string | null;
+  title?: string | null;
+  court?: string | null;
+  status?: string | null;
+  clientId?: string | null;
+  advocateId?: string | null;
+}
+
 interface CaseFormProps {
-  clients: any[];
-  advocates: any[];
-  caseData?: any;
+  clients: Client[];
+  advocates: Advocate[];
+  caseData?: CaseData;
 }
 
 export default function CaseForm({
@@ -36,7 +55,7 @@ export default function CaseForm({
         name="caseNumber"
         placeholder="Case Number"
         required
-        defaultValue={caseData?.caseNumber}
+        defaultValue={caseData?.caseNumber ?? ""}
         className="w-full border rounded-lg p-3"
       />
 
@@ -45,7 +64,7 @@ export default function CaseForm({
         name="title"
         placeholder="Case Title"
         required
-        defaultValue={caseData?.title}
+        defaultValue={caseData?.title ?? ""}
         className="w-full border rounded-lg p-3"
       />
 
@@ -54,7 +73,7 @@ export default function CaseForm({
         name="court"
         placeholder="Court Name"
         required
-        defaultValue={caseData?.court}
+        defaultValue={caseData?.court ?? ""}
         className="w-full border rounded-lg p-3"
       />
 

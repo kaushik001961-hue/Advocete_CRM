@@ -3,49 +3,64 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface Client {
+  id: string;
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  notes?: string | null;
+}
+
+interface EditClientFormProps {
+  client: Client;
+}
+
+interface ClientFormData {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  notes: string;
+}
+
 export default function EditClientForm({
   client,
-}: any) {
+}: EditClientFormProps) {
   const router = useRouter();
 
-  const [form, setForm] =
-    useState({
-      name: client.name || "",
-      phone: client.phone || "",
-      email: client.email || "",
-      address:
-        client.address || "",
-      city: client.city || "",
-      state:
-        client.state || "",
-      pincode:
-        client.pincode || "",
-      notes:
-        client.notes || "",
-    });
+  const [form, setForm] = useState<ClientFormData>({
+    name: client.name || "",
+    phone: client.phone || "",
+    email: client.email || "",
+    address: client.address || "",
+    city: client.city || "",
+    state: client.state || "",
+    pincode: client.pincode || "",
+    notes: client.notes || "",
+  });
 
   async function handleSubmit(
-    e: React.FormEvent
+    e: React.FormEvent<HTMLFormElement>
   ) {
     e.preventDefault();
 
-    const res = await fetch(
-      `/api/clients/${client.id}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify(form),
-      }
-    );
+    const res = await fetch(`/api/clients/${client.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(form),
+    });
 
     if (res.ok) {
-      router.push(
-        `/admin/clients/${client.id}`
-      );
-
+      router.push(`/admin/clients/${client.id}`);
       router.refresh();
     }
   }
@@ -94,6 +109,19 @@ export default function EditClientForm({
           }
           className="w-full border p-3 rounded"
           placeholder="Email"
+          type="email"
+        />
+
+        <input
+          value={form.address}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              address: e.target.value,
+            })
+          }
+          className="w-full border p-3 rounded"
+          placeholder="Address"
         />
 
         <input
@@ -125,8 +153,7 @@ export default function EditClientForm({
           onChange={(e) =>
             setForm({
               ...form,
-              pincode:
-                e.target.value,
+              pincode: e.target.value,
             })
           }
           className="w-full border p-3 rounded"
@@ -147,6 +174,7 @@ export default function EditClientForm({
         />
 
         <button
+          type="submit"
           className="bg-blue-600 text-white px-6 py-3 rounded"
         >
           Update Client

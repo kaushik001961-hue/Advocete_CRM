@@ -113,7 +113,7 @@ export default async function AdminPage() {
 
       {/* Documents */}
 
-      <DocumentPreview />
+     <DocumentPreview url={undefined} />
     </div>
   );
 }

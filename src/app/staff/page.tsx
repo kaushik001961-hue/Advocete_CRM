@@ -1,36 +1,40 @@
-
-import DashboardCard from "@/components/dashboard/DashboardCards";
+import DashboardCard from "@/components/dashboard/DashboardCard";
 import { prisma } from "@/lib/prisma";
 
 export default async function StaffDashboard() {
-
   const today = new Date();
 
-  const hearings = await prisma.hearing.count({
-    where: {
-      date: {
-        gte: new Date(today.setHours(0, 0, 0, 0)),
-        lt: new Date(today.setHours(23, 59, 59, 999)),
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(today);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const [hearings, clients, documents] = await Promise.all([
+    prisma.hearing.count({
+      where: {
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
-    },
-  });
+    }),
 
-  const clients = await prisma.client.count();
+    prisma.client.count(),
 
-  const documents = 0;
+    prisma.document.count(),
+  ]);
 
   return (
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Staff Dashboard</h1>
+        <p className="text-gray-500 mt-1">
+          Overview of today&apos;s activities
+        </p>
+      </div>
 
-    <div className="p-8">
-
-      <h1 className="text-3xl font-bold mb-8">
-
-        Staff Dashboard
-
-      </h1>
-
-      <div className="grid md:grid-cols-3 gap-6">
-
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <DashboardCard
           title="Today's Hearings"
           value={hearings}
@@ -45,11 +49,7 @@ export default async function StaffDashboard() {
           title="Documents"
           value={documents}
         />
-
       </div>
-
     </div>
-
   );
-
 }

@@ -2,11 +2,29 @@ import Link from "next/link";
 import DocumentPreview from "@/components/documents/DocumentPreview";
 import DeleteButton from "./DeleteButton";
 
+interface DocumentClient {
+  name?: string | null;
+}
+
+interface DocumentCase {
+  title?: string | null;
+}
+
+interface DocumentItem {
+  id: string;
+  name: string;
+  fileUrl: string;
+  client?: DocumentClient | null;
+  case?: DocumentCase | null;
+}
+
+interface DocumentTableProps {
+  documents: DocumentItem[];
+}
+
 export default function DocumentTable({
   documents,
-}: {
-  documents: any[];
-}) {
+}: DocumentTableProps) {
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
       <div className="overflow-x-auto">
@@ -60,9 +78,7 @@ export default function DocumentTable({
                   </td>
 
                   <td className="px-4 py-3 text-center">
-                    <DocumentPreview
-                      url={doc.fileUrl}
-                    />
+                    <DocumentPreview url={doc.fileUrl} />
                   </td>
 
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -77,6 +93,7 @@ export default function DocumentTable({
                     <Link
                       href={doc.fileUrl}
                       target="_blank"
+                      rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800"
                     >
                       Download
@@ -84,9 +101,7 @@ export default function DocumentTable({
                   </td>
 
                   <td className="px-4 py-3 text-center">
-                    <DeleteButton
-                      id={doc.id}
-                    />
+                    <DeleteButton id={doc.id} />
                   </td>
                 </tr>
               ))

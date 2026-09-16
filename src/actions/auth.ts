@@ -1,66 +1,41 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-
+import { signIn } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function registerUser(data: {
-
-name: string;
-
-email: string;
-
-password: string;
-
+  name: string;
+  email: string;
+  password: string;
 }) {
+  const exist = await prisma.user.findUnique({
+    where: {
+      email: data.email,
+    },
+  });
 
-const exist = await prisma.user.findUnique({
+  if (exist) {
+    return {
+      success: false,
+      message: "Email already exists",
+    };
+  }
 
-where: {
+  const hash = await bcrypt.hash(data.password, 10);
 
-email: data.email,
+  await prisma.user.create({
+    data: {
+      name: data.name,
+      email: data.email,
+      password: hash,
+    },
+  });
 
-},
-
-});
-
-if (exist)
-
-return {
-
-success: false,
-
-message: "Email already exists",
-
-};
-
-const hash = await bcrypt.hash(data.password, 10);
-
-await prisma.user.create({
-
-data: {
-
-name: data.name,
-
-email: data.email,
-
-password: hash,
-
-},
-
-});
-
-return {
-
-success: true,
-
-};
-
+  return {
+    success: true,
+  };
 }
-
-"use server";
-
-import { signIn } from "@/auth";
 
 export async function login(formData: FormData) {
   await signIn("credentials", {

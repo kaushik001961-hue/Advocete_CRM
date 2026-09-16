@@ -1,12 +1,19 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-// import { PrismaAdapter } from "@auth/prisma-adapter"; // 👈 Comment this out
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  // adapter: PrismaAdapter(prisma), // 👈 Comment this out completely!
+type UserRole = "ADMIN" | "ADVOCATE" | "STAFF";
 
+function isUserRole(value: unknown): value is UserRole {
+  return (
+    value === "ADMIN" ||
+    value === "ADVOCATE" ||
+    value === "STAFF"
+  );
+}
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
   },
@@ -17,42 +24,70 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: {},
         password: {},
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
 
-        // Keep this query to test if our custom prisma client actually works!
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        const email = String(credentials.email);
+        const password = String(credentials.password);
+
         const user = await prisma.user.findUnique({
           where: {
-            email: credentials.email as string,
+            email,
           },
         });
 
-        if (!user || !user.password) return null;
+        if (!user || !user.password) {
+          return null;
+        }
 
         const valid = await bcrypt.compare(
-          credentials.password as string,
+          password,
           user.password
         );
 
-        if (!valid) return null;
+        if (!valid) {
+          return null;
+        }
 
-        return user;
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role as UserRole,
+          image: user.image,
+        };
       },
     }),
   ],
-  
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
+
+ callbacks: {
+  async jwt({ token, user }) {
+    if (user) {
+      token.sub = user.id;
+
+      if (isUserRole(user.role)) {
         token.role = user.role;
       }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.role = token.role as string;
-      }
-      return session;
-    },
+    }
+
+    return token;
   },
+
+  async session({ session, token }) {
+    if (session.user) {
+      if (token.sub) {
+        session.user.id = token.sub;
+      }
+
+      if (isUserRole(token.role)) {
+        session.user.role = token.role;
+      }
+    }
+
+    return session;
+  },
+},
 });

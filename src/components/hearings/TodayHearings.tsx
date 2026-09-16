@@ -36,7 +36,7 @@ export default async function TodayHearings() {
     <div className="bg-white border rounded-2xl p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold">
-          Today's Hearings
+         Today&apos;s Hearings
         </h2>
 
         <Link

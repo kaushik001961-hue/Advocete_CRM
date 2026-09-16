@@ -3,12 +3,33 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface Invoice {
+  id: string;
+  invoiceNo: string;
+  amount: number;
+  gstAmount: number;
+  totalAmount: number;
+  status: string;
+}
+
+interface EditInvoiceFormProps {
+  invoice: Invoice;
+}
+
+interface InvoiceFormData {
+  invoiceNo: string;
+  amount: number;
+  gstAmount: number;
+  totalAmount: number;
+  status: string;
+}
+
 export default function EditInvoiceForm({
   invoice,
-}: any) {
+}: EditInvoiceFormProps) {
   const router = useRouter();
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<InvoiceFormData>({
     invoiceNo: invoice.invoiceNo,
     amount: invoice.amount,
     gstAmount: invoice.gstAmount,
@@ -17,7 +38,7 @@ export default function EditInvoiceForm({
   });
 
   async function handleSubmit(
-    e: React.FormEvent
+    e: React.FormEvent<HTMLFormElement>
   ) {
     e.preventDefault();
 
@@ -26,8 +47,7 @@ export default function EditInvoiceForm({
       {
         method: "PATCH",
         headers: {
-          "Content-Type":
-            "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(form),
       }
@@ -72,9 +92,7 @@ export default function EditInvoiceForm({
           onChange={(e) =>
             setForm({
               ...form,
-              amount: Number(
-                e.target.value
-              ),
+              amount: Number(e.target.value),
             })
           }
           className="w-full border rounded-lg p-3"
@@ -92,9 +110,7 @@ export default function EditInvoiceForm({
           onChange={(e) =>
             setForm({
               ...form,
-              gstAmount: Number(
-                e.target.value
-              ),
+              gstAmount: Number(e.target.value),
             })
           }
           className="w-full border rounded-lg p-3"
@@ -112,9 +128,7 @@ export default function EditInvoiceForm({
           onChange={(e) =>
             setForm({
               ...form,
-              totalAmount: Number(
-                e.target.value
-              ),
+              totalAmount: Number(e.target.value),
             })
           }
           className="w-full border rounded-lg p-3"

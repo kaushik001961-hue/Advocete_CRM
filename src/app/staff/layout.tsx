@@ -14,7 +14,7 @@ export default async function StaffLayout({
   }
 
   // Only STAFF can access
-  if ((session.user as any).role !== "STAFF") {
+  if (session.user.role !== "STAFF") {
     redirect("/");
   }
 
